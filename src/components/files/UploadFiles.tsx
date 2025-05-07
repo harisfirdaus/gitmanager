@@ -12,15 +12,11 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
+import { useRepoRefresh } from '../../contexts/RepoRefreshContext';
 import Header from '../common/Header';
 import Button from '../common/Button';
 import Card, { CardBody, CardHeader, CardFooter } from '../common/Card';
 import { uploadFile } from '../../services/githubService';
-
-interface RepoParams {
-  owner: string;
-  repo: string;
-}
 
 interface FileItem {
   id: string;
@@ -32,10 +28,26 @@ interface FileItem {
 }
 
 const UploadFiles: React.FC = () => {
-  const { owner, repo } = useParams<RepoParams>() as RepoParams;
+  const params = useParams();
+  const owner = params.owner;
+  const repo = params.repo;
+  
   const { token } = useAuth();
   const { addToast } = useToast();
+  const { triggerRepoDetailsRefresh } = useRepoRefresh();
   const navigate = useNavigate();
+  
+  useEffect(() => {
+    if (owner === undefined || repo === undefined) {
+      console.error("Owner or repo not found in UploadFiles params!");
+      addToast("Error: Critical parameters missing for upload.", "error");
+      navigate(-1);
+    }
+  }, [owner, repo, navigate, addToast]);
+  
+  if (owner === undefined || repo === undefined) {
+    return null;
+  }
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [files, setFiles] = useState<FileItem[]>([]);
@@ -80,7 +92,7 @@ const UploadFiles: React.FC = () => {
         return new Promise<File[]>((resolve) => {
           fileEntry.file((file) => {
             // Create a new File object with the modified path
-            const fileWithPath = new File([file], path ? `${path}/${file.name}` : file.name, {
+            const fileWithPath = new window.File([file], path ? `${path}/${file.name}` : file.name, {
               type: file.type,
               lastModified: file.lastModified,
             });
@@ -228,9 +240,10 @@ const UploadFiles: React.FC = () => {
     
     if (allSuccessful) {
       addToast('All files uploaded successfully!', 'success');
+      triggerRepoDetailsRefresh();
       setTimeout(() => {
         navigate(`/repository/${owner}/${repo}`);
-      }, 1500);
+      }, 2500);
     } else {
       addToast('Some files failed to upload. Please check the errors and try again.', 'error');
     }
