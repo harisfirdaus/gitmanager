@@ -23,3 +23,8 @@ dist-ssr
 *.sln
 *.sw?
 .env
+
+# Lockfiles - typically added for libraries, but can cause issues with platform-specific optional dependencies in apps
+package-lock.json 
+yarn.lock
+pnpm-lock.yaml
