@@ -29,11 +29,6 @@ import {
 } from '../../services/githubService';
 import { Repository } from '../dashboard/Dashboard';
 
-interface RepoParams {
-  owner: string;
-  repo: string;
-}
-
 interface ContentItem {
   name: string;
   path: string;
@@ -61,7 +56,9 @@ interface Branch {
 }
 
 const RepositoryDetails: React.FC = () => {
-  const { owner, repo } = useParams<RepoParams>() as RepoParams;
+  const params = useParams();
+  const owner = params.owner;
+  const repo = params.repo;
   const { token } = useAuth();
   const { addToast } = useToast();
   const navigate = useNavigate();
@@ -73,6 +70,23 @@ const RepositoryDetails: React.FC = () => {
   const [currentPath, setCurrentPath] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
   const [pathSegments, setPathSegments] = useState<{ name: string; path: string }[]>([]);
+
+  // Runtime check for owner and repo
+  if (owner === undefined || repo === undefined) {
+    // This should ideally not happen if routes are set up correctly.
+    // You might want to redirect to an error page or show a specific error component.
+    console.error("Owner atau repo tidak ditemukan di URL params!");
+    // For now, just return an error message or a simple loader/placeholder
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Header />
+        <div className="container mx-auto py-16 px-4 text-center">
+          <p className="text-red-500 text-lg">Error: Repository owner or name missing in URL.</p>
+        </div>
+      </div>
+    );
+  }
+  // From this point onwards, TypeScript knows that owner and repo are strings.
 
   const fetchContents = async (currentPathToFetch: string, currentBranchToFetch: string) => {
     try {
@@ -175,17 +189,23 @@ const RepositoryDetails: React.FC = () => {
       return;
     }
 
+    const originalContents = [...contents]; // Store original state for potential rollback
+
+    // Optimistically update the UI by removing the item
+    setContents(prevContents => prevContents.filter(content => content.sha !== item.sha));
+
     try {
-      setIsLoading(true);
-      await deleteFile(token, owner, repo, item.path, item.sha, `Delete ${item.name}`, currentBranch);
+      await deleteFile(token, owner, repo, item.path, item.sha, `Delete ${item.name} via GitManager`, currentBranch);
       addToast(`File "${item.name}" deleted successfully.`, 'success');
-      await fetchContents(currentPath, currentBranch);
+      // No immediate re-fetch here to rely on optimistic update and avoid race conditions with API consistency.
+      // The content list will naturally refresh if the user navigates or on component re-evaluation based on other effects.
     } catch (error: any) {
       console.error('Error deleting file:', error);
       addToast(error.message || `Failed to delete file "${item.name}"`, 'error');
-    } finally {
-      setIsLoading(false);
+      // Rollback UI to original state if deletion failed
+      setContents(originalContents);
     }
+    // isLoading state is not managed here anymore for optimistic updates to feel instant.
   };
 
   const goBack = () => {
