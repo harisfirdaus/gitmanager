@@ -88,10 +88,12 @@ const RepositoryDetails: React.FC = () => {
   }
   // From this point onwards, TypeScript knows that owner and repo are strings.
 
-  const fetchContents = async (currentPathToFetch: string, currentBranchToFetch: string) => {
+  const fetchContents = async (currentPathToFetch: string, currentBranchToFetch: string, isSilent: boolean = false) => {
     try {
       if (!token) return;
-      setIsLoading(true);
+      if (!isSilent) { // Only set loading if not a silent fetch
+        setIsLoading(true);
+      }
       const contentsData = await getRepositoryContents(token, owner, repo, currentPathToFetch, currentBranchToFetch);
       setContents(contentsData);
       updatePathSegments(currentPathToFetch);
@@ -199,6 +201,12 @@ const RepositoryDetails: React.FC = () => {
       addToast(`File "${item.name}" deleted successfully.`, 'success');
       // No immediate re-fetch here to rely on optimistic update and avoid race conditions with API consistency.
       // The content list will naturally refresh if the user navigates or on component re-evaluation based on other effects.
+      // Schedule a silent refresh a few seconds later to catch up with API eventual consistency for the current view.
+      setTimeout(() => {
+        if (token && owner && repo) { // Ensure params are still valid
+          fetchContents(currentPath, currentBranch, true); // Silent fetch
+        }
+      }, 5000); // 5-second delay, adjust as needed
     } catch (error: any) {
       console.error('Error deleting file:', error);
       addToast(error.message || `Failed to delete file "${item.name}"`, 'error');
