@@ -129,7 +129,14 @@ export const uploadFile = async (
   const content = await readFileAsBase64(file);
   
   // GitHub API requires base64 encoding for file content
-  const data = {
+  interface UploadData { // Define an interface for the data object
+    message: string;
+    content: string;
+    branch: string;
+    sha?: string; // sha is optional
+  }
+
+  const data: UploadData = {
     message,
     content,
     branch
@@ -215,4 +222,38 @@ const readFileAsBase64 = (file: File): Promise<string> => {
     
     reader.readAsDataURL(file);
   });
+};
+
+/**
+ * Delete a file from a repository
+ */
+export const deleteFile = async (
+  token: string,
+  owner: string,
+  repo: string,
+  path: string,
+  sha: string,
+  message: string,
+  branch: string // Making branch explicit, can default in calling function if needed
+) => {
+  const response = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${path}`, {
+    method: 'DELETE',
+    headers: {
+      'Authorization': `token ${token}`,
+      'Accept': 'application/vnd.github.v3+json',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      message,
+      sha,
+      branch
+    })
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.message || `Failed to delete file: ${path}`);
+  }
+
+  return await response.json(); // GitHub returns commit information on successful deletion
 };

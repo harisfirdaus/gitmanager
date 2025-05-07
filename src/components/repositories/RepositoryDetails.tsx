@@ -11,7 +11,9 @@ import {
   Upload,
   Clock,
   Code,
-  ArrowLeft
+  ArrowLeft,
+  ExternalLink,
+  Trash2
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
@@ -22,7 +24,8 @@ import LoadingSpinner from '../common/LoadingSpinner';
 import { 
   getRepository, 
   getRepositoryContents,
-  getBranches
+  getBranches,
+  deleteFile
 } from '../../services/githubService';
 import { Repository } from '../dashboard/Dashboard';
 
@@ -71,6 +74,21 @@ const RepositoryDetails: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [pathSegments, setPathSegments] = useState<{ name: string; path: string }[]>([]);
 
+  const fetchContents = async (currentPathToFetch: string, currentBranchToFetch: string) => {
+    try {
+      if (!token) return;
+      setIsLoading(true);
+      const contentsData = await getRepositoryContents(token, owner, repo, currentPathToFetch, currentBranchToFetch);
+      setContents(contentsData);
+      updatePathSegments(currentPathToFetch);
+    } catch (error) {
+      console.error('Error fetching repository contents:', error);
+      addToast('Failed to load directory contents', 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
     const fetchRepositoryData = async () => {
       try {
@@ -92,11 +110,7 @@ const RepositoryDetails: React.FC = () => {
         }
         
         // Fetch contents
-        const contentsData = await getRepositoryContents(token, owner, repo, currentPath, currentBranch);
-        setContents(contentsData);
-        
-        // Update path segments
-        updatePathSegments(currentPath);
+        await fetchContents(currentPath, currentBranch);
       } catch (error) {
         console.error('Error fetching repository data:', error);
         addToast('Failed to load repository information', 'error');
@@ -109,26 +123,9 @@ const RepositoryDetails: React.FC = () => {
   }, [token, owner, repo, addToast]);
 
   useEffect(() => {
-    const fetchContents = async () => {
-      try {
-        if (!token) return;
-        
-        setIsLoading(true);
-        
-        const contentsData = await getRepositoryContents(token, owner, repo, currentPath, currentBranch);
-        setContents(contentsData);
-        
-        // Update path segments
-        updatePathSegments(currentPath);
-      } catch (error) {
-        console.error('Error fetching repository contents:', error);
-        addToast('Failed to load directory contents', 'error');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    
-    fetchContents();
+    if (token && owner && repo) {
+      fetchContents(currentPath, currentBranch);
+    }
   }, [token, owner, repo, currentPath, currentBranch, addToast]);
 
   const updatePathSegments = (path: string) => {
@@ -165,6 +162,30 @@ const RepositoryDetails: React.FC = () => {
 
   const navigateToPath = (path: string) => {
     setCurrentPath(path);
+  };
+
+  const handleDeleteFile = async (item: ContentItem) => {
+    if (!token) {
+      addToast('Authentication token not found. Please log in again.', 'error');
+      return;
+    }
+
+    const confirmDelete = window.confirm(`Are you sure you want to delete "${item.name}"? This action cannot be undone.`);
+    if (!confirmDelete) {
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      await deleteFile(token, owner, repo, item.path, item.sha, `Delete ${item.name}`, currentBranch);
+      addToast(`File "${item.name}" deleted successfully.`, 'success');
+      await fetchContents(currentPath, currentBranch);
+    } catch (error: any) {
+      console.error('Error deleting file:', error);
+      addToast(error.message || `Failed to delete file "${item.name}"`, 'error');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const goBack = () => {
@@ -251,6 +272,17 @@ const RepositoryDetails: React.FC = () => {
                 <h1 className="text-2xl font-bold text-gray-900 flex items-center">
                   <FolderGit2 className="w-6 h-6 mr-2 text-blue-600" />
                   {owner}/{repo}
+                  {repository.html_url && (
+                    <a 
+                      href={repository.html_url} 
+                      target="_blank" 
+                      rel="noopener noreferrer" 
+                      title="Open in GitHub"
+                      className="ml-2 p-1 text-gray-500 hover:text-blue-600 transition-colors"
+                    >
+                      <ExternalLink className="w-5 h-5" />
+                    </a>
+                  )}
                 </h1>
                 <p className="text-gray-600 mt-1">
                   {repository.description || 'No description provided'}
@@ -365,10 +397,13 @@ const RepositoryDetails: React.FC = () => {
                         <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Size
                         </th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Actions
+                        </th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                      {contents.length === 0 ? (
+                      {contents.length === 0 && !currentPath ? (
                         <tr>
                           <td colSpan={3} className="px-6 py-4 text-center text-sm text-gray-500">
                             This repository is empty. Upload files to get started.
@@ -377,11 +412,9 @@ const RepositoryDetails: React.FC = () => {
                       ) : (
                         contents
                           .sort((a, b) => {
-                            // Directories come before files
                             if (a.type !== b.type) {
                               return a.type === 'dir' ? -1 : 1;
                             }
-                            // Alphabetical sort within the same type
                             return a.name.localeCompare(b.name);
                           })
                           .map((item) => (
@@ -410,6 +443,22 @@ const RepositoryDetails: React.FC = () => {
                                   '—'
                                 ) : (
                                   formatFileSize(item.size)
+                                )}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                {item.type === 'file' && (
+                                  <Button
+                                    variant="danger"
+                                    size="sm"
+                                    icon={<Trash2 className="w-4 h-4" />}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDeleteFile(item);
+                                    }}
+                                    title={`Delete ${item.name}`}
+                                  >
+                                    Delete
+                                  </Button>
                                 )}
                               </td>
                             </tr>
