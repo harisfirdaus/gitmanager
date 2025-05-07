@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GitHub Authentication</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+      background-color: #f9fafb;
+      flex-direction: column;
+    }
+    .card {
+      background-color: white;
+      border-radius: 8px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      padding: 24px;
+      text-align: center;
+      max-width: 400px;
+    }
+    h1 {
+      color: #111827;
+      font-size: 1.5rem;
+      margin-bottom: 1rem;
+    }
+    p {
+      color: #4b5563;
+      margin-bottom: 1.5rem;
+    }
+    .loader {
+      border: 3px solid #f3f3f3;
+      border-radius: 50%;
+      border-top: 3px solid #3b82f6;
+      width: 24px;
+      height: 24px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 1rem;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="loader"></div>
+    <h1>Authenticating with GitHub</h1>
+    <p>Please wait while we complete the GitHub authentication process...</p>
+  </div>
+
+  <script>
+    // Parse the URL to get the authorization code
+    const urlParams = new URLSearchParams(window.location.search);
+    const code = urlParams.get('code');
+    const error = urlParams.get('error');
+    const error_description = urlParams.get('error_description');
+    
+    if (error) {
+      document.querySelector('.card').innerHTML = `
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mx-auto mb-4 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="36" height="36">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+        </svg>
+        <h1>Authentication Error</h1>
+        <p>${error_description || 'Failed to authenticate with GitHub'}</p>
+      `;
+    } else if (code) {
+      // Send the code back to the opener window
+      if (window.opener) {
+        window.opener.postMessage({
+          type: 'github-oauth-success',
+          code: code
+        }, '*');
+        
+        // Close this window after a short delay
+        setTimeout(() => {
+          window.close();
+        }, 1000);
+      } else {
+        document.querySelector('.card').innerHTML = `
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mx-auto mb-4 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="36" height="36">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <h1>Authentication Error</h1>
+          <p>Could not communicate with the main window. Please try again.</p>
+        `;
+      }
+    } else {
+      document.querySelector('.card').innerHTML = `
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mx-auto mb-4 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="36" height="36">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+        </svg>
+        <h1>Authentication Error</h1>
+        <p>No authorization code received from GitHub</p>
+      `;
+    }
+  </script>
+</body>
+</html>
