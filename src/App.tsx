@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Github as GitHub } from 'lucide-react';
 import { AuthProvider } from './contexts/AuthContext';
+import { RepoRefreshProvider, useRepoRefresh } from './contexts/RepoRefreshContext';
 import Login from './components/auth/Login';
 import Dashboard from './components/dashboard/Dashboard';
 import RepositoryDetails from './components/repositories/RepositoryDetails';
@@ -17,6 +18,7 @@ import './App.css';
 function AppContent() {
   const { toasts } = useToast();
   const [isLoading, setIsLoading] = useState(true);
+  const { repoDetailsKey } = useRepoRefresh();
 
   useEffect(() => {
     // Simulate initial app loading
@@ -52,7 +54,7 @@ function AppContent() {
           path="/repository/:owner/:repo" 
           element={
             <PrivateRoute>
-              <RepositoryDetails />
+              <RepositoryDetails key={repoDetailsKey} />
             </PrivateRoute>
           } 
         />
@@ -94,9 +96,11 @@ function App() {
   return (
     <Router>
       <AuthProvider>
-        <ToastProvider>
-          <AppContent />
-        </ToastProvider>
+        <RepoRefreshProvider>
+          <ToastProvider>
+            <AppContent />
+          </ToastProvider>
+        </RepoRefreshProvider>
       </AuthProvider>
     </Router>
   );
