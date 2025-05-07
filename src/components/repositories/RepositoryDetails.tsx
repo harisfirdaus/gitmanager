@@ -13,7 +13,8 @@ import {
   Code,
   ArrowLeft,
   ExternalLink,
-  Trash2
+  Trash2,
+  RefreshCw
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
@@ -201,12 +202,6 @@ const RepositoryDetails: React.FC = () => {
       addToast(`File "${item.name}" deleted successfully.`, 'success');
       // No immediate re-fetch here to rely on optimistic update and avoid race conditions with API consistency.
       // The content list will naturally refresh if the user navigates or on component re-evaluation based on other effects.
-      // Schedule a silent refresh a few seconds later to catch up with API eventual consistency for the current view.
-      setTimeout(() => {
-        if (token && owner && repo) { // Ensure params are still valid
-          fetchContents(currentPath, currentBranch, true); // Silent fetch
-        }
-      }, 5000); // 5-second delay, adjust as needed
     } catch (error: any) {
       console.error('Error deleting file:', error);
       addToast(error.message || `Failed to delete file "${item.name}"`, 'error');
@@ -214,6 +209,11 @@ const RepositoryDetails: React.FC = () => {
       setContents(originalContents);
     }
     // isLoading state is not managed here anymore for optimistic updates to feel instant.
+  };
+
+  // Function to handle manual refresh
+  const handleRefresh = () => {
+    fetchContents(currentPath, currentBranch, false); // Fetch with loading state
   };
 
   const goBack = () => {
@@ -356,6 +356,17 @@ const RepositoryDetails: React.FC = () => {
                       </option>
                     ))}
                   </select>
+                  
+                  <Button 
+                    variant="outline"
+                    size="sm"
+                    onClick={handleRefresh}
+                    icon={<RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />}
+                    disabled={isLoading}
+                    title="Refresh file list"
+                  >
+                    Refresh
+                  </Button>
                   
                   <div className="flex items-center text-sm">
                     <Link to="#" className="text-gray-600 hover:text-blue-600">
