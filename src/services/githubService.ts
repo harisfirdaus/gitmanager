@@ -35,7 +35,44 @@ export const getRepository = async (token: string, owner: string, repo: string) 
 };
 
 /**
- * Get repository contents at a specific path
+ * Get the last commit for a specific path (file or directory)
+ */
+export const getLastCommitForPath = async (
+  token: string,
+  owner: string,
+  repo: string,
+  path: string,
+  branch: string
+) => {
+  const url = `https://api.github.com/repos/${owner}/${repo}/commits?path=${encodeURIComponent(path)}&sha=${encodeURIComponent(branch)}&per_page=1`;
+  const response = await fetch(url, {
+    headers: {
+      'Authorization': `token ${token}`,
+      'Accept': 'application/vnd.github.v3+json'
+    }
+  });
+
+  if (!response.ok) {
+    // It's possible a file is new and has no commits yet, or path is incorrect for commits query
+    // Or a directory might not have a direct commit listed this way if commits are only on files
+    console.warn(`Failed to fetch last commit for path ${path}: ${response.statusText}`);
+    return null;
+  }
+
+  const commits = await response.json();
+  if (commits && commits.length > 0) {
+    return {
+      message: commits[0].commit.message,
+      date: commits[0].commit.committer.date,
+      authorName: commits[0].commit.committer.name,
+      sha: commits[0].sha
+    };
+  }
+  return null;
+};
+
+/**
+ * Get repository contents at a specific path, including last commit info for each item
  */
 export const getRepositoryContents = async (
   token: string, 
@@ -56,14 +93,30 @@ export const getRepositoryContents = async (
   });
   
   if (!response.ok) {
-    // If the repository is empty, GitHub returns a 404 for the root contents
     if (response.status === 404 && !path) {
-      return [];
+      return []; // Empty repository
     }
-    throw new Error(`Failed to fetch repository contents: ${response.statusText}`);
+    throw new Error(`Failed to fetch repository contents: ${response.statusText} for path: ${path}`);
   }
   
-  return await response.json();
+  const contents = await response.json();
+
+  // Enhance contents with last commit information
+  const enhancedContents = await Promise.all(
+    contents.map(async (item: any) => {
+      // For directories, we might want the last commit that affected anything *within* them,
+      // or the commit that created/last modified the directory entry itself.
+      // The current getLastCommitForPath will find the last commit affecting this exact path.
+      // For files, this is straightforward.
+      const lastCommit = await getLastCommitForPath(token, owner, repo, item.path, branch);
+      return {
+        ...item,
+        lastCommit: lastCommit // This will add { message, date, authorName, sha } or null
+      };
+    })
+  );
+  
+  return enhancedContents;
 };
 
 /**

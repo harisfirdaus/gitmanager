@@ -31,6 +31,13 @@ import {
 } from '../../services/githubService';
 import { Repository } from '../dashboard/Dashboard';
 
+interface LastCommitInfo {
+  message: string;
+  date: string;
+  authorName: string;
+  sha: string;
+}
+
 interface ContentItem {
   name: string;
   path: string;
@@ -46,6 +53,7 @@ interface ContentItem {
     git: string;
     html: string;
   };
+  lastCommit?: LastCommitInfo | null;
 }
 
 interface Branch {
@@ -229,6 +237,32 @@ const RepositoryDetails: React.FC = () => {
       month: 'short',
       day: 'numeric',
     });
+  };
+
+  const formatRelativeTime = (dateString: string | undefined): string => {
+    if (!dateString) return '-';
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+
+    const units: { unit: Intl.RelativeTimeFormatUnit; seconds: number }[] = [
+      { unit: 'year', seconds: 31536000 },
+      { unit: 'month', seconds: 2592000 },
+      { unit: 'week', seconds: 604800 },
+      { unit: 'day', seconds: 86400 },
+      { unit: 'hour', seconds: 3600 },
+      { unit: 'minute', seconds: 60 },
+      { unit: 'second', seconds: 1 }
+    ];
+
+    for (const { unit, seconds } of units) {
+      const interval = Math.floor(diffInSeconds / seconds);
+      if (interval >= 1) {
+        const rtf = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
+        return rtf.format(-interval, unit);
+      }
+    }
+    return 'just now';
   };
 
   const formatFileSize = (bytes: number) => {
@@ -529,7 +563,25 @@ const RepositoryDetails: React.FC = () => {
                                 </div>
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                <span className="text-gray-400">Commit message not available</span>
+                                {item.lastCommit ? (
+                                  <div className="flex flex-col">
+                                    <span 
+                                      className="text-gray-900 font-medium truncate hover:underline cursor-pointer"
+                                      title={item.lastCommit.message}
+                                      onClick={(e) => {
+                                        e.stopPropagation(); // Prevent row click
+                                        window.open(`${repository?.html_url}/commit/${item.lastCommit?.sha}`, '_blank');
+                                      }}
+                                    >
+                                      {item.lastCommit.message.split('\n')[0]} 
+                                    </span>
+                                    <span className="text-gray-500">
+                                      {item.lastCommit.authorName} committed {formatRelativeTime(item.lastCommit.date)}
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <span className="text-gray-400">-</span> // Displayed while loading or if no commit info
+                                )}
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                 {item.type === 'dir' ? (
