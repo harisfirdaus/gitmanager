@@ -15,7 +15,8 @@ import {
   ExternalLink,
   Trash2,
   RefreshCw,
-  ChevronDown
+  ChevronDown,
+  Copy
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
@@ -30,6 +31,7 @@ import {
   deleteFile
 } from '../../services/githubService';
 import { Repository } from '../dashboard/Dashboard';
+import CopyRepositoryModal from './CopyRepositoryModal';
 
 interface LastCommitInfo {
   message: string;
@@ -81,6 +83,7 @@ const RepositoryDetails: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [pathSegments, setPathSegments] = useState<{ name: string; path: string }[]>([]);
   const [isDeployDropdownOpen, setIsDeployDropdownOpen] = useState(false);
+  const [isCopyModalOpen, setIsCopyModalOpen] = useState(false);
 
   // Runtime check for owner and repo
   if (owner === undefined || repo === undefined) {
@@ -305,6 +308,51 @@ const RepositoryDetails: React.FC = () => {
 
   const toggleDeployDropdown = () => setIsDeployDropdownOpen(!isDeployDropdownOpen);
 
+  // Fungsi untuk modal Copy Repository
+  const openCopyModal = () => setIsCopyModalOpen(true);
+  const closeCopyModal = () => setIsCopyModalOpen(false);
+
+  const handleCopyRepository = async (newName: string, isPrivate: boolean): Promise<void> => {
+    if (!owner || !repo || !token) {
+      addToast('Missing critical information to copy repository. User token might be missing.', 'error');
+      throw new Error('Missing critical information. User token might be missing.');
+    }
+
+    try {
+      const response = await fetch('/.netlify/functions/copy-repository', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          sourceOwner: owner,
+          sourceRepo: repo,
+          newName,
+          isPrivate,
+          userToken: token
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.message || 'Failed to copy repository via function.');
+      }
+
+      addToast(result.message || `Repository ${result.newRepository.owner}/${result.newRepository.name} created!`, 'success');
+      
+      // Menunggu sebentar sebelum navigasi agar pengguna bisa melihat toast
+      setTimeout(() => {
+        navigate(`/repository/${result.newRepository.owner}/${result.newRepository.name}`);
+      }, 2000); // Jeda 2 detik
+
+    } catch (error: any) {
+      console.error('Error calling copy-repository function:', error);
+      addToast(error.message || 'An unexpected error occurred while copying.', 'error');
+      throw error; // Dilempar lagi agar modal bisa menangani error juga
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50">
@@ -403,6 +451,17 @@ const RepositoryDetails: React.FC = () => {
                 <p className="text-gray-600 mt-1">
                   {repository.description || 'No description provided'}
                 </p>
+                
+                <div className="mt-4">
+                  <Button 
+                    variant="outline" 
+                    onClick={openCopyModal}
+                    className="flex items-center"
+                  >
+                    <Copy size={16} className="mr-2" />
+                    Copy Repository
+                  </Button>
+                </div>
               </div>
               
               <div className="flex items-center gap-4">
@@ -635,6 +694,17 @@ const RepositoryDetails: React.FC = () => {
           </>
         )}
       </main>
+
+      {/* Ganti placeholder dengan komponen CopyRepositoryModal yang sebenarnya */}
+      {isCopyModalOpen && (
+        <CopyRepositoryModal
+          isOpen={isCopyModalOpen}
+          onClose={closeCopyModal}
+          sourceRepoName={repo}
+          sourceRepoOwner={owner}
+          onCopy={handleCopyRepository}
+        />
+      )}
     </div>
   );
 };
