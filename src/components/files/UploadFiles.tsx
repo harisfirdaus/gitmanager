@@ -56,6 +56,16 @@ const UploadFiles: React.FC = () => {
   const [branch, setBranch] = useState('main');
   const [isDragging, setIsDragging] = useState(false);
   
+  const [conversionOptions, setConversionOptions] = useState<{
+    [fileId: string]: {
+      isXlsx: boolean;
+      convertToJSON: boolean;
+      jsonOutputName: string;
+      isConverting: boolean;
+      conversionError?: string;
+    }
+  }>({});
+  
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const fileList = Array.from(e.target.files);
@@ -69,6 +79,20 @@ const UploadFiles: React.FC = () => {
       }));
       
       setFiles(prev => [...prev, ...newFiles]);
+
+      setConversionOptions(prevOptions => {
+        const updatedOptions = { ...prevOptions };
+        newFiles.forEach(nf => {
+          const isXlsx = nf.file.name.toLowerCase().endsWith('.xlsx');
+          updatedOptions[nf.id] = {
+            isXlsx: isXlsx,
+            convertToJSON: isXlsx, 
+            jsonOutputName: isXlsx ? nf.file.name.replace(/\.xlsx$/i, '.json') : '',
+            isConverting: false,
+          };
+        });
+        return updatedOptions;
+      });
     }
   };
   
@@ -79,7 +103,6 @@ const UploadFiles: React.FC = () => {
     let items = e.dataTransfer.items;
     
     if (items) {
-      // Process all the items that are dropped
       processItems(items);
     }
   };
@@ -91,7 +114,7 @@ const UploadFiles: React.FC = () => {
         
         return new Promise<File[]>((resolve) => {
           fileEntry.file((file) => {
-            // Create a new File object with the modified path
+           
             const fileWithPath = new window.File([file], path ? `${path}/${file.name}` : file.name, {
               type: file.type,
               lastModified: file.lastModified,
@@ -132,22 +155,18 @@ const UploadFiles: React.FC = () => {
       return [];
     };
     
-    const newFiles: FileItem[] = [];
-    
+    const collectedFileItems: FileItem[] = [];
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
-      
       if (item.kind === 'file') {
         const entry = item.webkitGetAsEntry();
-        
         if (entry) {
-          const files = await getFilesFromEntry(entry);
-          
-          files.forEach(file => {
-            newFiles.push({
+          const filesFromEntry = await getFilesFromEntry(entry); 
+          filesFromEntry.forEach(file => { 
+            collectedFileItems.push({
               id: Math.random().toString(36).substring(2, 9),
-              file,
-              path: file.name,
+              file, 
+              path: file.name, 
               status: 'pending',
               progress: 0
             });
@@ -156,7 +175,22 @@ const UploadFiles: React.FC = () => {
       }
     }
     
-    setFiles(prev => [...prev, ...newFiles]);
+    setFiles(prev => [...prev, ...collectedFileItems]);
+
+    setConversionOptions(prevOptions => {
+      const updatedOptions = { ...prevOptions };
+      collectedFileItems.forEach(cfi => {
+        const isXlsx = cfi.file.name.toLowerCase().endsWith('.xlsx');
+        const actualFileName = cfi.file.name.includes('/') ? cfi.file.name.substring(cfi.file.name.lastIndexOf('/') + 1) : cfi.file.name;
+        updatedOptions[cfi.id] = {
+          isXlsx: isXlsx,
+          convertToJSON: isXlsx, 
+          jsonOutputName: isXlsx ? actualFileName.replace(/\.xlsx$/i, '.json') : '',
+          isConverting: false,
+        };
+      });
+      return updatedOptions;
+    });
   };
   
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
@@ -171,6 +205,11 @@ const UploadFiles: React.FC = () => {
   
   const handleRemoveFile = (id: string) => {
     setFiles(prev => prev.filter(file => file.id !== id));
+    setConversionOptions(prevOptions => {
+      const updatedOptions = { ...prevOptions };
+      delete updatedOptions[id];
+      return updatedOptions;
+    });
   };
   
   const handlePathChange = (id: string, newPath: string) => {
@@ -375,9 +414,74 @@ const UploadFiles: React.FC = () => {
                               type="text"
                               value={fileItem.path}
                               onChange={(e) => handlePathChange(fileItem.id, e.target.value)}
-                              className="text-sm px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 w-full"
-                              disabled={isUploading}
+                              className="text-sm px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 w-full mb-1"
+                              disabled={isUploading || conversionOptions[fileItem.id]?.isConverting}
                             />
+                            {conversionOptions[fileItem.id]?.isXlsx && (
+                              <div className="mt-1 text-xs">
+                                <label className="flex items-center space-x-2 cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    className="form-checkbox h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                                    checked={conversionOptions[fileItem.id]?.convertToJSON || false}
+                                    disabled={isUploading || conversionOptions[fileItem.id]?.isConverting}
+                                    onChange={(e) => {
+                                      const checked = e.target.checked;
+                                      setConversionOptions(prev => {
+                                        const currentOpts = prev[fileItem.id];
+                                        const actualFileName = fileItem.file.name.includes('/') 
+                                                            ? fileItem.file.name.substring(fileItem.file.name.lastIndexOf('/') + 1) 
+                                                            : fileItem.file.name;
+                                        return {
+                                          ...prev,
+                                          [fileItem.id]: {
+                                            ...(currentOpts || {}), 
+                                            isXlsx: currentOpts?.isXlsx || true, 
+                                            convertToJSON: checked,
+                                            jsonOutputName: checked && !currentOpts?.jsonOutputName 
+                                                              ? actualFileName.replace(/\.xlsx$/i, '.json') 
+                                                              : (currentOpts?.jsonOutputName || actualFileName.replace(/\.xlsx$/i, '.json')),
+                                            isConverting: currentOpts?.isConverting || false, 
+                                          }
+                                        };
+                                      });
+                                    }}
+                                  />
+                                  <span className="text-gray-700">Konversi ke JSON</span>
+                                </label>
+                                {conversionOptions[fileItem.id]?.convertToJSON && (
+                                  <input
+                                    type="text"
+                                    placeholder="nama_file_output.json"
+                                    className="mt-1 w-full text-xs px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                    value={conversionOptions[fileItem.id]?.jsonOutputName || ''}
+                                    disabled={isUploading || conversionOptions[fileItem.id]?.isConverting}
+                                    onChange={(e) => {
+                                      const newName = e.target.value;
+                                      setConversionOptions(prev => {
+                                        const currentOpts = prev[fileItem.id];
+                                        return {
+                                          ...prev,
+                                          [fileItem.id]: {
+                                            ...(currentOpts || {}),
+                                            isXlsx: currentOpts?.isXlsx || true,
+                                            convertToJSON: currentOpts?.convertToJSON || true, 
+                                            jsonOutputName: newName,
+                                            isConverting: currentOpts?.isConverting || false,
+                                          }
+                                        };
+                                      });
+                                    }}
+                                  />
+                                )}
+                                {conversionOptions[fileItem.id]?.isConverting && (
+                                  <p className="text-blue-600 mt-1">Mengkonversi...</p>
+                                )}
+                                {conversionOptions[fileItem.id]?.conversionError && (
+                                  <p className="text-red-600 mt-1">{conversionOptions[fileItem.id]?.conversionError}</p>
+                                )}
+                              </div>
+                            )}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             {fileItem.status === 'pending' && (
