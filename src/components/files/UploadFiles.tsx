@@ -447,7 +447,7 @@ const UploadFiles: React.FC = () => {
                                       });
                                     }}
                                   />
-                                  <span className="text-gray-700">Konversi ke JSON</span>
+                                  <span className="text-gray-700">Convert to JSON</span>
                                 </label>
                                 {conversionOptions[fileItem.id]?.convertToJSON && (
                                   <input
