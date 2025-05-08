@@ -17,6 +17,19 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
     };
   }
 
+  const body = JSON.parse(event.body || '{}') as CopyRepoRequestBody;
+      const { sourceOwner, sourceRepo, newName, isPrivate, userToken } = body;
+
+      if (!userToken) {
+        return { statusCode: 401, body: JSON.stringify({ message: 'User authentication token is missing.' }) };
+      }
+      if (!sourceOwner || !sourceRepo || !newName) {
+        return { statusCode: 400, body: JSON.stringify({ message: 'Missing required fields: sourceOwner, sourceRepo, newName' }) };
+      }
+      if (!/^[a-zA-Z0-9_.-]+$/.test(newName)) {
+        return { statusCode: 400, body: JSON.stringify({ message: 'Invalid repository name. Use only alphanumeric characters, periods, hyphens, or underscores.' }) };
+      }
+
   try {
     const body = JSON.parse(event.body || '{}') as CopyRepoRequestBody;
     const { sourceOwner, sourceRepo, newName, isPrivate, userToken } = body;
