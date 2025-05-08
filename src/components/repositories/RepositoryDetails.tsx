@@ -14,7 +14,8 @@ import {
   ArrowLeft,
   ExternalLink,
   Trash2,
-  RefreshCw
+  RefreshCw,
+  ChevronDown
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
@@ -71,6 +72,7 @@ const RepositoryDetails: React.FC = () => {
   const [currentPath, setCurrentPath] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
   const [pathSegments, setPathSegments] = useState<{ name: string; path: string }[]>([]);
+  const [isDeployDropdownOpen, setIsDeployDropdownOpen] = useState(false);
 
   // Runtime check for owner and repo
   if (owner === undefined || repo === undefined) {
@@ -267,6 +269,8 @@ const RepositoryDetails: React.FC = () => {
     }
   };
 
+  const toggleDeployDropdown = () => setIsDeployDropdownOpen(!isDeployDropdownOpen);
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50">
@@ -311,6 +315,56 @@ const RepositoryDetails: React.FC = () => {
                       <ExternalLink className="w-5 h-5" />
                     </a>
                   )}
+                  <div className="relative inline-block text-left ml-2">
+                    <div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={toggleDeployDropdown}
+                        icon={<ChevronDown className="h-4 w-4" />}
+                      >
+                        Deploy
+                      </Button>
+                    </div>
+                    {isDeployDropdownOpen && (
+                      <div
+                        className="origin-top-right absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none z-10"
+                        role="menu"
+                        aria-orientation="vertical"
+                        aria-labelledby="menu-button"
+                      >
+                        <div className="py-1" role="none">
+                          <a
+                            href="https://share.streamlit.io/"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-gray-700 block px-4 py-2 text-sm hover:bg-gray-100"
+                            role="menuitem"
+                          >
+                            Streamlit
+                          </a>
+                          <a
+                            href="https://vercel.com/"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-gray-700 block px-4 py-2 text-sm hover:bg-gray-100"
+                            role="menuitem"
+                          >
+                            Vercel
+                          </a>
+                          <a
+                            href="https://www.netlify.com/"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-gray-700 block px-4 py-2 text-sm hover:bg-gray-100"
+                            role="menuitem"
+                          >
+                            Netlify
+                          </a>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </h1>
                 <p className="text-gray-600 mt-1">
                   {repository.description || 'No description provided'}
