@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
   Upload, 
-  File, 
+  File as FileIcon,
   Trash2, 
   Check, 
   X, 
@@ -218,6 +218,61 @@ const UploadFiles: React.FC = () => {
     ));
   };
   
+  // --- Fungsi Helper untuk Konversi XLSX via Netlify Function ---
+  const convertXlsxViaNetlifyFunction = async (
+    fileToConvert: File, 
+    targetJsonName: string
+  ): Promise<{ data: any; fileName: string; originalSheetName: string }> => {
+    try {
+      const arrayBuffer = await fileToConvert.arrayBuffer();
+
+      const arrayBufferToBase64 = (buffer: ArrayBuffer): string => {
+        let binary = '';
+        const bytes = new Uint8Array(buffer);
+        const len = bytes.byteLength;
+        for (let i = 0; i < len; i++) {
+          binary += String.fromCharCode(bytes[i]);
+        }
+        return window.btoa(binary);
+      };
+      const base64Data = arrayBufferToBase64(arrayBuffer);
+
+      const response = await fetch(
+        `/.netlify/functions/convertXlsxToJson?fileName=${encodeURIComponent(targetJsonName)}`,
+        {
+          method: 'POST',
+          body: base64Data, 
+        }
+      );
+
+      if (!response.ok) {
+        let errorDetails = 'Gagal melakukan konversi.';
+        try {
+          const errorResult = await response.json();
+          errorDetails = errorResult.error || errorResult.details || `Error ${response.status}: ${response.statusText}`;
+        } catch (e) {
+          errorDetails = `Error ${response.status}: ${response.statusText}. Respons tidak valid.`;
+        }
+        throw new Error(errorDetails);
+      }
+
+      const result = await response.json();
+      return { 
+        data: result.data, 
+        fileName: result.fileName, 
+        originalSheetName: result.originalSheetName 
+      };
+
+    } catch (error) {
+      console.error('Kesalahan dalam convertXlsxViaNetlifyFunction:', error);
+      if (error instanceof Error) {
+        throw new Error(`Konversi gagal: ${error.message}`);
+      }
+      throw new Error('Terjadi kesalahan tidak diketahui selama proses konversi.');
+    }
+  };
+  // --- Akhir Fungsi Helper ---
+
   const handleUpload = async () => {
     if (files.length === 0) {
       addToast('Please add files to upload', 'warning');
@@ -230,61 +285,100 @@ const UploadFiles: React.FC = () => {
     }
     
     setIsUploading(true);
-    
     let allSuccessful = true;
-    
-    // Update files to uploading status
-    setFiles(prev => prev.map(file => ({
-      ...file,
-      status: 'uploading',
-      progress: 0
-    })));
-    
+
     for (const fileItem of files) {
       if (fileItem.status === 'success') continue;
-      
+
+      let fileToUpload: File = fileItem.file;
+      let pathInRepo: string = fileItem.path;
+      let isConversionAttempted = false;
+      let progressInterval: NodeJS.Timeout | undefined = undefined;
+
+      setFiles(prev => prev.map(f => 
+        f.id === fileItem.id ? { ...f, status: 'uploading', progress: 0, error: undefined } : f
+      ));
+      if (conversionOptions[fileItem.id]) {
+        setConversionOptions(prev => ({
+          ...prev,
+          [fileItem.id]: { ...prev[fileItem.id], conversionError: undefined }
+        }));
+      }
+
       try {
-        // Simulate progress updates
-        const progressInterval = setInterval(() => {
+        const convOpts = conversionOptions[fileItem.id];
+        if (convOpts && convOpts.isXlsx && convOpts.convertToJSON) {
+          isConversionAttempted = true;
+          addToast(`Converting ${fileItem.file.name} to JSON...`, 'info');
+          setConversionOptions(prev => ({
+            ...prev,
+            [fileItem.id]: { ...prev[fileItem.id], isConverting: true, conversionError: undefined }
+          }));
+          
+          const conversionResult = await convertXlsxViaNetlifyFunction(fileItem.file, convOpts.jsonOutputName);
+          
+          const jsonBlob = new Blob([JSON.stringify(conversionResult.data, null, 2)], { type: 'application/json' });
+          fileToUpload = new File([jsonBlob], conversionResult.fileName, { type: 'application/json' });
+          pathInRepo = conversionResult.fileName;
+
+          addToast(`${fileItem.file.name} converted successfully to ${conversionResult.fileName}. Now uploading...`, 'success');
+          setConversionOptions(prev => ({
+            ...prev,
+            [fileItem.id]: { ...prev[fileItem.id], isConverting: false }
+          }));
+        }
+
+        let currentProgress = 0;
+        progressInterval = setInterval(() => {
+          currentProgress = Math.min(currentProgress + 10, 90);
           setFiles(prev => prev.map(f => 
             f.id === fileItem.id && f.status === 'uploading'
-              ? { ...f, progress: Math.min(f.progress + 10, 90) }
+              ? { ...f, progress: currentProgress }
               : f
           ));
         }, 200);
+
+        await uploadFile(token!, owner, repo, pathInRepo, fileToUpload, commitMessage, branch);
         
-        await uploadFile(token!, owner, repo, fileItem.path, fileItem.file, commitMessage, branch);
-        
-        clearInterval(progressInterval);
-        
-        // Mark this file as successful
         setFiles(prev => prev.map(f => 
           f.id === fileItem.id
-            ? { ...f, status: 'success', progress: 100 }
+            ? { ...f, status: 'success', progress: 100, path: pathInRepo }
             : f
         ));
+
       } catch (error: any) {
         allSuccessful = false;
         
-        // Mark this file as failed
+        let errorMessage = error.message || 'Upload or Conversion failed';
+        if (isConversionAttempted && conversionOptions[fileItem.id]) {
+           setConversionOptions(prev => ({
+            ...prev,
+            [fileItem.id]: { ...prev[fileItem.id], isConverting: false, conversionError: errorMessage }
+          }));
+        }
+
         setFiles(prev => prev.map(f => 
           f.id === fileItem.id
-            ? { ...f, status: 'error', progress: 0, error: error.message || 'Upload failed' }
+            ? { ...f, status: 'error', progress: 0, error: errorMessage }
             : f
         ));
+      } finally {
+        if (progressInterval) {
+          clearInterval(progressInterval);
+        }
       }
     }
-    
+
     setIsUploading(false);
     
     if (allSuccessful) {
-      addToast('All files uploaded successfully!', 'success');
+      addToast('All files processed successfully!', 'success');
       triggerRepoDetailsRefresh();
       setTimeout(() => {
         navigate(`/repository/${owner}/${repo}`);
-      }, 2500);
+      }, 1500);
     } else {
-      addToast('Some files failed to upload. Please check the errors and try again.', 'error');
+      addToast('Some files failed to upload or convert. Please check errors.', 'error');
     }
   };
   
@@ -400,7 +494,7 @@ const UploadFiles: React.FC = () => {
                         <tr key={fileItem.id}>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="flex items-center">
-                              <File className="w-5 h-5 text-gray-400 mr-3" />
+                              <FileIcon className="w-5 h-5 text-gray-400 mr-3" />
                               <span className="text-sm text-gray-900">
                                 {fileItem.file.name}
                               </span>
