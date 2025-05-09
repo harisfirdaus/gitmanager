@@ -713,16 +713,18 @@ const RepositoryDetails: React.FC = () => {
       </main>
 
       {isCopyModalOpen && repository && (
-        <CopyRepositoryModal
-          isOpen={isCopyModalOpen}
-          onClose={closeCopyModal}
-          repository={repository}
+        <CopyRepositoryModal 
+          isOpen={isCopyModalOpen} 
+          onClose={closeCopyModal} 
+          sourceRepoName={repository.name} 
+          sourceRepoOwner={repository.owner.login}
+          onCopy={handleCopyRepository}
         />
       )}
       {isEmbedModalOpen && repository && (
-        <EmbedModal
-          isOpen={isEmbedModalOpen}
-          onClose={closeEmbedModal}
+        <EmbedModal 
+          isOpen={isEmbedModalOpen} 
+          onClose={closeEmbedModal} 
           repositoryName={repository.full_name}
         />
       )}
