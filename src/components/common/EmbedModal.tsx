@@ -33,7 +33,7 @@ const EmbedModal: React.FC<EmbedModalProps> = ({ isOpen, onClose, repositoryName
     if (!appUrl || appUrl.trim() === '') {
       setGeneratedEmbedCode('');
       // Mungkin tambahkan notifikasi error di sini jika diperlukan
-      alert('Silakan masukkan App URL Streamlit Anda.');
+      alert('Please enter your Streamlit App URL.');
       return;
     }
 
@@ -52,7 +52,7 @@ const EmbedModal: React.FC<EmbedModalProps> = ({ isOpen, onClose, repositoryName
     } catch (e) {
       console.error("Invalid App URL:", e);
       setGeneratedEmbedCode('');
-      alert('URL Aplikasi tidak valid. Pastikan formatnya benar (misalnya, https://nama-app.streamlit.app).');
+      alert('Invalid Application URL. Ensure the format is correct (e.g., https://your-app-name.streamlit.app).');
     }
   };
 
@@ -64,8 +64,8 @@ const EmbedModal: React.FC<EmbedModalProps> = ({ isOpen, onClose, repositoryName
           setTimeout(() => setCopied(false), 2000); // Reset status copied setelah 2 detik
         })
         .catch(err => {
-          console.error('Gagal menyalin kode:', err);
-          alert('Gagal menyalin kode. Silakan salin secara manual.');
+          console.error('Failed to copy code:', err);
+          alert('Failed to copy code. Please copy it manually.');
         });
     }
   };
@@ -84,11 +84,11 @@ const EmbedModal: React.FC<EmbedModalProps> = ({ isOpen, onClose, repositoryName
         onClick={(e) => e.stopPropagation()} // Hentikan propagasi agar tidak menutup modal saat klik di dalam konten
       >
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-semibold text-gray-800">Buat Kode Embed Streamlit</h2>
+          <h2 className="text-xl font-semibold text-gray-800">Create Streamlit Embed Code</h2>
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600"
-            aria-label="Tutup modal"
+            aria-label="Close modal"
           >
             <X size={24} />
           </button>
@@ -96,23 +96,23 @@ const EmbedModal: React.FC<EmbedModalProps> = ({ isOpen, onClose, repositoryName
 
         {repositoryName && (
           <p className="text-sm text-gray-600 mb-1">
-            Repositori: <span className="font-medium">{repositoryName}</span>
+            Repository: <span className="font-medium">{repositoryName}</span>
           </p>
         )}
         <p className="text-xs text-gray-500 mb-4">
-          Masukkan URL aplikasi Streamlit Anda yang sudah di-deploy untuk membuat kode embed.
+          Enter the URL of your deployed Streamlit application to generate the embed code.
         </p>
 
         <div className="mb-4">
           <label htmlFor="appUrl" className="block text-sm font-medium text-gray-700 mb-1">
-            App URL Streamlit:
+            Streamlit App URL:
           </label>
           <input
             type="text"
             id="appUrl"
             value={appUrl}
             onChange={(e) => setAppUrl(e.target.value)}
-            placeholder="Contoh: https://nama-anda-nama-app.streamlit.app"
+            placeholder="Example: https://your-name-your-app.streamlit.app"
             className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
           />
         </div>
@@ -122,13 +122,13 @@ const EmbedModal: React.FC<EmbedModalProps> = ({ isOpen, onClose, repositoryName
           variant="primary" // Asumsi ada varian primary
           className="w-full mb-4"
         >
-          Buat Kode Embed
+          Create Embed Code
         </Button>
 
         {generatedEmbedCode && (
           <div className="mb-4">
             <label htmlFor="embedCode" className="block text-sm font-medium text-gray-700 mb-1">
-              Kode Embed yang Dihasilkan:
+              Generated Embed Code:
             </label>
             <div className="relative">
               <textarea
@@ -140,21 +140,21 @@ const EmbedModal: React.FC<EmbedModalProps> = ({ isOpen, onClose, repositoryName
               />
               <button
                 onClick={handleCopyToClipboard}
-                title="Salin kode"
+                title="Copy code"
                 className="absolute top-2 right-2 p-1.5 text-gray-500 hover:text-blue-600 bg-white rounded hover:bg-gray-100 transition-colors"
               >
                 {copied ? <CheckCircle size={18} className="text-green-500" /> : <Copy size={18} />} 
               </button>
             </div>
              <p className="text-xs text-gray-500 mt-1">
-              Kode ini bisa Anda gunakan untuk menyematkan aplikasi Streamlit di website lain.
+              You can use this code to embed your Streamlit application on other websites.
             </p>
           </div>
         )}
         
         <div className="mt-6 flex justify-end">
           <Button onClick={onClose} variant="secondary"> 
-            Tutup
+            Close
           </Button>
         </div>
       </div>
