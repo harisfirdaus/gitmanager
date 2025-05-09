@@ -16,7 +16,9 @@ import {
   Trash2,
   RefreshCw,
   ChevronDown,
-  Copy
+  Copy,
+  Code as CodeIcon,
+  CheckCircle
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
@@ -32,6 +34,7 @@ import {
 } from '../../services/githubService';
 import { Repository } from '../dashboard/Dashboard';
 import CopyRepositoryModal from './CopyRepositoryModal';
+import EmbedModal from '../common/EmbedModal';
 
 interface LastCommitInfo {
   message: string;
@@ -84,6 +87,7 @@ const RepositoryDetails: React.FC = () => {
   const [pathSegments, setPathSegments] = useState<{ name: string; path: string }[]>([]);
   const [isDeployDropdownOpen, setIsDeployDropdownOpen] = useState(false);
   const [isCopyModalOpen, setIsCopyModalOpen] = useState(false);
+  const [isEmbedModalOpen, setIsEmbedModalOpen] = useState(false);
 
   // Runtime check for owner and repo
   if (owner === undefined || repo === undefined) {
@@ -312,6 +316,9 @@ const RepositoryDetails: React.FC = () => {
   const openCopyModal = () => setIsCopyModalOpen(true);
   const closeCopyModal = () => setIsCopyModalOpen(false);
 
+  const openEmbedModal = () => setIsEmbedModalOpen(true);
+  const closeEmbedModal = () => setIsEmbedModalOpen(false);
+
   const handleCopyRepository = async (newName: string, isPrivate: boolean): Promise<void> => {
     if (!owner || !repo || !token) {
       addToast('Missing critical information to copy repository. User token might be missing.', 'error');
@@ -453,14 +460,24 @@ const RepositoryDetails: React.FC = () => {
                 </p>
                 
                 <div className="mt-4">
-                  <Button 
-                    variant="outline" 
-                    onClick={openCopyModal}
-                    className="flex items-center"
-                  >
-                    <Copy size={16} className="mr-2" />
-                    Copy Repository
-                  </Button>
+                  <div className="flex flex-wrap gap-2">
+                    <Button 
+                      variant="outline" 
+                      onClick={openCopyModal}
+                      className="flex items-center"
+                    >
+                      <Copy size={16} className="mr-2" />
+                      Copy Repository
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      onClick={openEmbedModal}
+                      className="flex items-center"
+                    >
+                      <CodeIcon size={16} className="mr-2" />
+                      Embed
+                    </Button>
+                  </div>
                 </div>
               </div>
               
@@ -695,14 +712,18 @@ const RepositoryDetails: React.FC = () => {
         )}
       </main>
 
-      {/* Ganti placeholder dengan komponen CopyRepositoryModal yang sebenarnya */}
-      {isCopyModalOpen && (
+      {isCopyModalOpen && repository && (
         <CopyRepositoryModal
           isOpen={isCopyModalOpen}
           onClose={closeCopyModal}
-          sourceRepoName={repo}
-          sourceRepoOwner={owner}
-          onCopy={handleCopyRepository}
+          repository={repository}
+        />
+      )}
+      {isEmbedModalOpen && repository && (
+        <EmbedModal
+          isOpen={isEmbedModalOpen}
+          onClose={closeEmbedModal}
+          repositoryName={repository.full_name}
         />
       )}
     </div>
